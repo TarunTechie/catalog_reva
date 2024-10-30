@@ -1,59 +1,50 @@
-const fs = require("fs");
+const fs = require('fs');
 
-function decodeValue(base, value) {
-  return parseInt(value, base);
-}
+// Read JSON data from input.json
+fs.readFile('input.json', 'utf8', (err, data) => {
+  if (err) {
+    console.error('Error reading the file:', err);
+    return;
+  }
 
-// Function to find the constant term using Lagrange Interpolation
-function findConstantTerm(points) {
-  let result = 0;
+  const jsonData = JSON.parse(data);
 
-  // Apply Lagrange interpolation for f(0)
-  for (let i = 0; i < points.length; i++) {
-    const [xi, yi] = points[i];
-    let term = yi;
+  function decodeValue(value, base) {
+    let decodedValue = BigInt(0);
+    for (let i = 0; i < value.length; i++) {
+      const digitValue = parseInt(value[i], base);
+      decodedValue = decodedValue * BigInt(base) + BigInt(digitValue);
+    }
+    return decodedValue;
+  }
 
-    for (let j = 0; j < points.length; j++) {
-      if (i !== j) {
-        const [xj, _] = points[j];
-        term *= (0 - xj) / (xi - xj);
+  const decodedValues = Object.keys(jsonData)
+    .filter(key => !key.startsWith('keys'))
+    .map(key => {
+      const base = parseInt(jsonData[key].base);
+      const value = jsonData[key].value;
+      return decodeValue(value, base);
+    });
+
+  function lagrangeInterpolation(xValues, yValues) {
+    const n = yValues.length;
+    let c = BigInt(0);
+
+    for (let i = 0; i < n; i++) {
+      let term = BigInt(yValues[i]);
+      for (let j = 0; j < n; j++) {
+        if (i !== j) {
+          term *= BigInt(-xValues[j]) / BigInt(xValues[i] - xValues[j]);
+        }
       }
+      c += term;
     }
-    result += term;
-  }
-  return Math.round(result); 
-}
 
-
-function main() {
-  
-  const data = JSON.parse(fs.readFileSync("input.json", "utf-8"));
-
-  const n = data.keys.n;
-  const k = data.keys.k;
-
-  
-  const points = [];
-  for (const key in data) {
-    if (key !== "keys") {
-      const pointData = data[key];
-      const base = parseInt(pointData.base);
-      const value = pointData.value;
-
-      
-      const x = parseInt(key);
-      const y = decodeValue(base, value);
-      points.push([x, y]);
-    }
+    return c;
   }
 
-  
-  const selectedPoints = points.slice(0, k);
+  const xValues = Array.from({ length: decodedValues.length }, (_, i) => BigInt(i + 1));
+  const constantTerm = lagrangeInterpolation(xValues, decodedValues);
 
-  
-  const constantTerm = findConstantTerm(selectedPoints);
-  console.log("The constant term c is:", constantTerm);
-}
-
-
-main();
+  console.log("The constant term c is:", constantTerm.toString());
+});
